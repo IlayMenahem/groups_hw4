@@ -4,6 +4,7 @@ from itertools import permutations
 import torch
 from torch import nn
 import torch.nn.functional as F
+from torch import optim
 
 
 class canonizetion(nn.Module):
@@ -353,17 +354,52 @@ if __name__ == "__main__":
     test_input_shape(symetric_model, n, d, d_tag)
 
     # for all models print if the model is equivariant, invariant or none
-    print("Canonizated Model Equivariance:", test_equivariance(canonizated_model, n, d))
-    print("Canonizated Model Invariance:", test_invariance(canonizated_model, n, d))
+    # Test canonizated model
+    canonizated_equiv = test_equivariance(canonizated_model, n, d)
+    canonizated_invar = test_invariance(canonizated_model, n, d)
 
-    print("Symetrized Model Equivariance:", test_equivariance(symetrized_model, n, d))
-    print("Symetrized Model Invariance:", test_invariance(symetrized_model, n, d))
+    # Test symetrized model
+    symetrized_equiv = test_equivariance(symetrized_model, n, d)
+    symetrized_invar = test_invariance(symetrized_model, n, d)
 
-    print("Sampled Symetrized Model Equivariance:", test_equivariance(sampled_symetrized_model, n, d))
-    print("Sampled Symetrized Model Invariance:", test_invariance(sampled_symetrized_model, n, d))
+    # Test sampled symetrized model
+    sampled_symetrized_equiv = test_equivariance(sampled_symetrized_model, n, d)
+    sampled_symetrized_invar = test_invariance(sampled_symetrized_model, n, d)
 
-    print("Augmentated Model Equivariance:", test_equivariance(augmentated_model, n, d))
-    print("Augmentated Model Invariance:", test_invariance(augmentated_model, n, d))
+    # Test augmentated model
+    augmentated_equiv = test_equivariance(augmentated_model, n, d)
+    augmentated_invar = test_invariance(augmentated_model, n, d)
 
-    print("Symetric Model Equivariance:", test_equivariance(symetric_model, n, d))
-    print("Symetric Model Invariance:", test_invariance(symetric_model, n, d))
+    # Test symetric model
+    symetric_equiv = test_equivariance(symetric_model, n, d)
+    symetric_invar = test_invariance(symetric_model, n, d)
+
+    print('\nsupose to be invariant')
+    print("Canonizated Model Equivariance:", canonizated_equiv)
+    print("Canonizated Model Invariance:", canonizated_invar)
+    if not (canonizated_equiv and canonizated_invar):
+        raise ValueError("Canonizated model should be invariant and equivariant")
+
+    print('\nsupose to be invariant')
+    print("Symetrized Model Equivariance:", symetrized_equiv)
+    print("Symetrized Model Invariance:", symetrized_invar)
+    if not (symetrized_equiv and symetrized_invar):
+        raise ValueError("Symetrized model should be invariant and equivariant")
+
+    print('\nsupose to not be invariant or equivariant')
+    print("Sampled Symetrized Model Equivariance:", sampled_symetrized_equiv)
+    print("Sampled Symetrized Model Invariance:", sampled_symetrized_invar)
+    if sampled_symetrized_equiv or sampled_symetrized_invar:
+        raise ValueError("Sampled symetrized model should not be invariant or equivariant")
+
+    print('\nsupose to not be invariant or equivariant')
+    print("Augmentated Model Equivariance:", augmentated_equiv)
+    print("Augmentated Model Invariance:", augmentated_invar)
+    if augmentated_equiv or augmentated_invar:
+        raise ValueError("Augmentated model should not be invariant or equivariant")
+
+    print('\nsupose to be equivariant')
+    print("Symetric Model Equivariance:", symetric_equiv)
+    print("Symetric Model Invariance:", symetric_invar)
+    if not (symetric_equiv and not symetric_invar):
+        raise ValueError("Symetric model should be equivariant and not invariant")
