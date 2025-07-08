@@ -186,11 +186,12 @@ class invariant_linear(nn.Module):
         - x (torch.Tensor): Input tensor of shape (batch_size, n, d).
 
         Returns:
-        - torch.Tensor: Output tensor of shape (batch_size, n, d').
+        - torch.Tensor: Output tensor of shape (batch_size, d').
         '''
+        raise NotImplementedError('this layer is not implemented yet')
         batch_size, n, d = x.shape
-        x_sum = torch.sum(x, dim=1, keepdim=True)
-        res = torch.matmul(x_sum, self.linear.T).expand(batch_size, n, -1) + self.bias.expand(batch_size, n, -1)
+        x_sum = torch.sum(x, dim=-1)
+        res = torch.matmul(x_sum, self.linear).expand(batch_size, n, -1) + self.bias.expand(batch_size, n, -1)
 
         return res
 
