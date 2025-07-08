@@ -4,7 +4,6 @@ from itertools import permutations
 import torch
 from torch import nn
 import torch.nn.functional as F
-from torch import optim
 
 
 class canonizetion(nn.Module):
@@ -115,7 +114,7 @@ class sampled_symetrizartion(nn.Module):
         return output
 
 
-class symetric_linear(nn.Module):
+class equiv_linear(nn.Module):
     '''
     a linear layer with S_n symmetry
     '''
@@ -128,7 +127,7 @@ class symetric_linear(nn.Module):
         - in_features (int): Number of input features d.
         - out_features (int): Number of output features d'.
         '''
-        super(symetric_linear, self).__init__()
+        super(equiv_linear, self).__init__()
 
         self.linear1 = nn.Parameter(torch.Tensor(in_features, out_features))
         self.linear2 = nn.Parameter(torch.Tensor(in_features, out_features))
@@ -154,6 +153,44 @@ class symetric_linear(nn.Module):
         x_sum = torch.sum(x, dim=1, keepdim=True)
         h_sum = torch.matmul(x_sum, self.linear2)
         res = h_self + h_sum + self.bias
+
+        return res
+
+
+class invariant_linear(nn.Module):
+    '''
+    a linear layer that is invariant to permutations
+    '''
+
+    def __init__(self, out_features):
+        '''
+        Initializes an invariant linear layer.
+
+        Args:
+        - out_features (int): Number of output features d'.
+        '''
+        super(invariant_linear, self).__init__()
+
+        self.linear = nn.Parameter(torch.Tensor(1, out_features))
+        self.bias = nn.Parameter(torch.Tensor(1, out_features))
+
+        nn.init.xavier_uniform_(self.linear)
+        nn.init.zeros_(self.bias)
+
+
+    def forward(self, x):
+        '''
+        Applies the invariant linear transformation to the input tensor.
+
+        Args:
+        - x (torch.Tensor): Input tensor of shape (batch_size, n, d).
+
+        Returns:
+        - torch.Tensor: Output tensor of shape (batch_size, n, d').
+        '''
+        batch_size, n, d = x.shape
+        x_sum = torch.sum(x, dim=1, keepdim=True)
+        res = torch.matmul(x_sum, self.linear.T).expand(batch_size, n, -1) + self.bias.expand(batch_size, n, -1)
 
         return res
 
@@ -184,6 +221,9 @@ class augmentaion(nn.Module):
         Returns:
         - torch.Tensor: Augmented tensor of shape (batch_size, n, d).
         '''
+        if not self.training:
+            return x
+
         _, n, _ = x.shape
         permuted_indices = torch.randperm(n)
         x_permuted = x[:, permuted_indices, :]
@@ -225,6 +265,7 @@ def test_equivariance(net, n, d, atol = 1e-6):
     Returns:
     - bool: True if the model is equivariant, False otherwise.
     '''
+    torch.random.manual_seed(0)
     x = torch.randn(1, n, d)
     permutation = torch.randperm(n)
     permuted_x = x[0, permutation, :].unsqueeze(0)
@@ -252,6 +293,7 @@ def test_invariance(net, n, d, atol = 1e-6):
     Returns:
     - bool: True if the model is invariant, False otherwise.
     '''
+    torch.random.manual_seed(0)
     x = torch.randn(1, n, d)
     permutation = torch.randperm(n)
     permuted_x = x[:, permutation, :]
@@ -315,9 +357,9 @@ if __name__ == "__main__":
             - out_features (int): Number of output features d'.
             '''
             super(BasicModelWithSymmetry, self).__init__()
-            self.linear1 = symetric_linear(in_features, 128)
-            self.linear2 = symetric_linear(128, 128)
-            self.linear3 = symetric_linear(128, out_features)
+            self.linear1 = equiv_linear(in_features, 128)
+            self.linear2 = equiv_linear(128, 128)
+            self.linear3 = equiv_linear(128, out_features)
 
 
         def forward(self, x):
@@ -345,6 +387,7 @@ if __name__ == "__main__":
     sampled_symetrized_model = sampled_symetrizartion(BasicModel(d, d_tag), num_samples=12)
     augmentated_model = nn.Sequential(augmentaion(), BasicModel(d, d_tag))
     symetric_model = BasicModelWithSymmetry(d, d_tag)
+    invariant_model = nn.Sequential(symetric_model, invariant_linear(d_tag))
 
     # Test input shape
     test_input_shape(canonizated_model, n, d, d_tag)
@@ -352,6 +395,7 @@ if __name__ == "__main__":
     test_input_shape(sampled_symetrized_model, n, d, d_tag)
     test_input_shape(augmentated_model, n, d, d_tag)
     test_input_shape(symetric_model, n, d, d_tag)
+    test_input_shape(invariant_model, n, d, d_tag)
 
     # for all models print if the model is equivariant, invariant or none
     # Test canonizated model
@@ -374,32 +418,42 @@ if __name__ == "__main__":
     symetric_equiv = test_equivariance(symetric_model, n, d)
     symetric_invar = test_invariance(symetric_model, n, d)
 
-    print('\nsupose to be invariant')
+    # Test invariant model
+    invariant_equiv = test_equivariance(invariant_model, n, d)
+    invariant_invar = test_invariance(invariant_model, n, d)
+
+    print('\nshould be invariant')
     print("Canonizated Model Equivariance:", canonizated_equiv)
     print("Canonizated Model Invariance:", canonizated_invar)
     if not (canonizated_equiv and canonizated_invar):
         raise ValueError("Canonizated model should be invariant and equivariant")
 
-    print('\nsupose to be invariant')
+    print('\nshould be invariant')
     print("Symetrized Model Equivariance:", symetrized_equiv)
     print("Symetrized Model Invariance:", symetrized_invar)
     if not (symetrized_equiv and symetrized_invar):
         raise ValueError("Symetrized model should be invariant and equivariant")
 
-    print('\nsupose to not be invariant or equivariant')
+    print('\nshould not be invariant or equivariant')
     print("Sampled Symetrized Model Equivariance:", sampled_symetrized_equiv)
     print("Sampled Symetrized Model Invariance:", sampled_symetrized_invar)
     if sampled_symetrized_equiv or sampled_symetrized_invar:
         raise ValueError("Sampled symetrized model should not be invariant or equivariant")
 
-    print('\nsupose to not be invariant or equivariant')
+    print('\nshould not be invariant or equivariant')
     print("Augmentated Model Equivariance:", augmentated_equiv)
     print("Augmentated Model Invariance:", augmentated_invar)
     if augmentated_equiv or augmentated_invar:
         raise ValueError("Augmentated model should not be invariant or equivariant")
 
-    print('\nsupose to be equivariant')
+    print('\nshould be equivariant')
     print("Symetric Model Equivariance:", symetric_equiv)
     print("Symetric Model Invariance:", symetric_invar)
     if not (symetric_equiv and not symetric_invar):
         raise ValueError("Symetric model should be equivariant and not invariant")
+
+    print('\nshould be invariant')
+    print("Invariant Model Equivariance:", invariant_equiv)
+    print("Invariant Model Invariance:", invariant_invar)
+    if not (invariant_equiv and invariant_invar):
+        raise ValueError("Invariant model should be invariant and equivariant")
